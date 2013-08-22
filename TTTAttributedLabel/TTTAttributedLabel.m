@@ -170,6 +170,12 @@ static inline NSAttributedString * NSAttributedStringBySettingColorFromContext(N
 }
 
 @interface TTTAttributedLabel ()
+{
+	CTFramesetterRef _framesetter;
+	CTFramesetterRef _highlightFramesetter;
+}
+
+
 @property (readwrite, nonatomic, copy) NSAttributedString *inactiveAttributedText;
 @property (readwrite, nonatomic, copy) NSAttributedString *renderedAttributedText;
 @property (readwrite, nonatomic, assign) CTFramesetterRef framesetter;
@@ -276,8 +282,47 @@ static inline NSAttributedString * NSAttributedStringBySettingColorFromContext(N
 	    
     self.linkAttributes = [NSDictionary dictionaryWithDictionary:mutableLinkAttributes];
     self.activeLinkAttributes = [NSDictionary dictionaryWithDictionary:mutableActiveLinkAttributes];
-    
+	
 }
+
+
+- (void)setFramesetter:(CTFramesetterRef)framesetter
+{
+	if (framesetter != _framesetter)
+	{
+		if (_framesetter)
+		{
+			CFRelease(_framesetter);
+			_framesetter = NULL;
+		}
+		
+		_framesetter = framesetter;
+		if (_framesetter != NULL)
+		{
+			CFRetain(_framesetter);
+		}
+	}
+}
+
+
+- (void)setHighlightFramesetter:(CTFramesetterRef)highlightFramesetter
+{
+	if (_highlightFramesetter != highlightFramesetter)
+	{
+		if (_highlightFramesetter)
+		{
+			CFRelease(_highlightFramesetter);
+			_highlightFramesetter = NULL;
+		}
+		
+		_highlightFramesetter = highlightFramesetter;
+		if (_highlightFramesetter != NULL)
+		{
+			CFRetain(_highlightFramesetter);
+		}
+	}
+}
+
 
 - (void)dealloc {
     if (_framesetter) CFRelease(_framesetter);
@@ -307,10 +352,12 @@ static inline NSAttributedString * NSAttributedStringBySettingColorFromContext(N
 - (CTFramesetterRef)framesetter {
     if (_needsFramesetter) {
         @synchronized(self) {
-            if (_framesetter) CFRelease(_framesetter);
-            if (_highlightFramesetter) CFRelease(_highlightFramesetter);
-            
-            self.framesetter = CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)self.renderedAttributedText);
+            if (_framesetter) self.framesetter = NULL;
+            if (_highlightFramesetter) self.highlightFramesetter = NULL;
+           
+			  CTFramesetterRef framesetter = CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)self.renderedAttributedText);
+			  self.framesetter = framesetter;
+			  CFRelease(framesetter);
             self.highlightFramesetter = nil;
             _needsFramesetter = NO;
         }
@@ -748,6 +795,7 @@ static inline NSAttributedString * NSAttributedStringBySettingColorFromContext(N
                 CGFloat y = roundf(runBounds.origin.y + runBounds.size.height / 2.0f);
                 CGContextMoveToPoint(c, runBounds.origin.x, y);
                 CGContextAddLineToPoint(c, runBounds.origin.x + runBounds.size.width, y);
+					CFRelease(font);
                 
                 CGContextStrokePath(c);
             }
@@ -942,7 +990,9 @@ afterInheritingLabelAttributesAndConfiguringWithBlock:(NSMutableAttributedString
             [highlightAttributedString addAttribute:(__bridge NSString *)kCTForegroundColorAttributeName value:(id)[self.highlightedTextColor CGColor] range:NSMakeRange(0, highlightAttributedString.length)];
             
             if (!self.highlightFramesetter) {
-                self.highlightFramesetter = CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)highlightAttributedString);
+					CTFramesetterRef framesetter = CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)highlightAttributedString);
+					self.highlightFramesetter = framesetter;
+					CFRelease(framesetter);
             }
             
             [self drawFramesetter:self.highlightFramesetter attributedString:highlightAttributedString textRange:textRange inRect:textRect context:c];
